@@ -9,7 +9,8 @@ HANDLE hSimConnect = NULL;
 HRESULT hr = E_FAIL;
 
 enum EVENT_ID {
-	KEY_AP_ALT_VAR_SET_ENGLISH
+	KEY_AP_ALT_VAR_SET_ENGLISH,
+    KEY_AP_ALT_VAR_SET_ENGLISH2
 };
 
 enum GROUP_ID {
@@ -70,10 +71,35 @@ void CALLBACK MyDispatchProc1(SIMCONNECT_RECV* pData, DWORD cbData, void* pConte
     }
 }
 
+void checkForInput()
+{
+    char receivedString[DATA_LENGTH];
+    if (arduino->isConnected()) {
+        int hasRead = arduino->readSerialPort(receivedString, DATA_LENGTH);
+        if (hasRead)
+        {
+            string dataString = receivedString;
+            int command = atoi(dataString.substr(0, 4).c_str());
+            int value = atoi(dataString.substr(5, 32).c_str());
+            if (value != 0) {
+                switch (command)
+                {
+                case 0001:
+                    // SimConnect_TransmitClientEvent(hSimConnect, 0, KEY_AP_ALT_VAR_SET_ENGLISH, value, SIMCONNECT_GROUP_PRIORITY_HIGHEST, SIMCONNECT_EVENT_FLAG_GROUPID_IS_PRIORITY);
+                    cout << value << endl;
+                }
+            }
+        }
+        else std::cerr << "Error occured reading data" << "\n";
+    }
+}
+
 void startListening()
 {
     hr = SimConnect_MapClientEventToSimEvent(hSimConnect, KEY_AP_ALT_VAR_SET_ENGLISH, "AP_ALT_VAR_SET_ENGLISH");
+    hr = SimConnect_MapClientEventToSimEvent(hSimConnect, KEY_AP_ALT_VAR_SET_ENGLISH2, "AP_MASTER");
     hr = SimConnect_AddClientEventToNotificationGroup(hSimConnect, GROUP0, KEY_AP_ALT_VAR_SET_ENGLISH);
+    // hr = SimConnect_AddClientEventToNotificationGroup(hSimConnect, GROUP0, KEY_AP_ALT_VAR_SET_ENGLISH2);
     hr = SimConnect_SetNotificationGroupPriority(hSimConnect, GROUP0, SIMCONNECT_GROUP_PRIORITY_HIGHEST);
     if (hr == S_OK) {
         cout << "listening for events" << endl;
@@ -89,6 +115,21 @@ void startListening()
     hr = SimConnect_Close(hSimConnect);
 }
 
+void listenForCommands()
+{
+    if (hr == S_OK) {
+        while (quit == 0)
+        {
+            checkForInput();
+            Sleep(100);
+            cout << "test" << endl;
+        }
+    }
+    else {
+        cout << "failed to map client event" << endl;
+    }
+}
+
 int main() {
 
     arduino = new SerialPort(portName);
@@ -97,6 +138,7 @@ int main() {
 	if (SUCCEEDED(SimConnect_Open(&hSimConnect, "Client Event", NULL, NULL, NULL, NULL))) {
 		cout << "sim connected" << endl;
         startListening();
+        listenForCommands();
 	}
 	else {
 		cout << "bruh" << endl;
