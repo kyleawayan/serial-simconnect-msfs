@@ -10,18 +10,20 @@ HRESULT hr = E_FAIL;
 
 enum EVENT_ID {
 	KEY_AP_ALT_VAR_SET_ENGLISH,
-    KEY_AP_ALT_VAR_SET_ENGLISH2
+    KEY_AP_ALT_VAR_SET_ENGLISH2,
+    ALTITUDE_SLOT_INDEX_SET
 };
 
 enum GROUP_ID {
 	GROUP0,
 };
 
-const char* portName = "\\\\.\\COM6";
+const char* portName = "\\\\.\\COM7";
 SerialPort* arduino;
 #define DATA_LENGTH 32
 
 int quit;
+int currentAlt;
 
 void sendSerial(string dataString)
 {
@@ -48,9 +50,9 @@ void CALLBACK MyDispatchProc1(SIMCONNECT_RECV* pData, DWORD cbData, void* pConte
         {
         case KEY_AP_ALT_VAR_SET_ENGLISH:
             printf("\nRef Alt on AP: %d", evt->dwData);
-            char alt[32];
-            sprintf_s(alt, "%d", evt->dwData);
-            sendSerial(alt);
+            // char alt[32];
+            // sprintf_s(alt, "%d", evt->dwData);
+            currentAlt = evt->dwData;
             break;
 
         default:
@@ -79,18 +81,24 @@ void checkForInput()
         if (hasRead)
         {
             string dataString = receivedString;
-            int command = atoi(dataString.substr(0, 4).c_str());
-            int value = atoi(dataString.substr(5, 32).c_str());
-            if (value != 0) {
-                switch (command)
-                {
-                case 0001:
-                    // SimConnect_TransmitClientEvent(hSimConnect, 0, KEY_AP_ALT_VAR_SET_ENGLISH, value, SIMCONNECT_GROUP_PRIORITY_HIGHEST, SIMCONNECT_EVENT_FLAG_GROUPID_IS_PRIORITY);
-                    cout << value << endl;
-                }
+            int command = atoi(dataString.c_str());
+            cout << command << endl;
+            switch (command)
+            {
+            case 3:
+                SimConnect_TransmitClientEvent(hSimConnect, 0, KEY_AP_ALT_VAR_SET_ENGLISH, currentAlt+1000, SIMCONNECT_GROUP_PRIORITY_HIGHEST, SIMCONNECT_EVENT_FLAG_GROUPID_IS_PRIORITY);
+                // cout << "1" << endl;
+                break;
+            case 2:
+                SimConnect_TransmitClientEvent(hSimConnect, 0, KEY_AP_ALT_VAR_SET_ENGLISH, currentAlt - 1000, SIMCONNECT_GROUP_PRIORITY_HIGHEST, SIMCONNECT_EVENT_FLAG_GROUPID_IS_PRIORITY);
+                // cout << "1" << endl;
+                break;
+            case 4:
+                SimConnect_TransmitClientEvent(hSimConnect, 0, ALTITUDE_SLOT_INDEX_SET, 2, SIMCONNECT_GROUP_PRIORITY_HIGHEST, SIMCONNECT_EVENT_FLAG_GROUPID_IS_PRIORITY);
+                // cout << "1" << endl;
+                break;
             }
         }
-        else std::cerr << "Error occured reading data" << "\n";
     }
 }
 
@@ -106,6 +114,7 @@ void startListening()
         while (quit == 0)
         {
             SimConnect_CallDispatch(hSimConnect, MyDispatchProc1, NULL);
+            checkForInput();
             Sleep(1);
         }
     }
@@ -113,21 +122,6 @@ void startListening()
         cout << "failed to map client event" << endl;
     }
     hr = SimConnect_Close(hSimConnect);
-}
-
-void listenForCommands()
-{
-    if (hr == S_OK) {
-        while (quit == 0)
-        {
-            checkForInput();
-            Sleep(100);
-            cout << "test" << endl;
-        }
-    }
-    else {
-        cout << "failed to map client event" << endl;
-    }
 }
 
 int main() {
@@ -138,7 +132,6 @@ int main() {
 	if (SUCCEEDED(SimConnect_Open(&hSimConnect, "Client Event", NULL, NULL, NULL, NULL))) {
 		cout << "sim connected" << endl;
         startListening();
-        listenForCommands();
 	}
 	else {
 		cout << "bruh" << endl;
